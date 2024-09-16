@@ -10,21 +10,22 @@ def test_step(model: torch.nn.Module,
                ):
     
     test_loss,test_acc = 0,0
-    model.train()
 
-    for (words,labels) in dataloader:
-        words,labels = words.to(device),labels.to(device)
+    model.eval()
+    with torch.inference_mode():
+        for  words,labels in dataloader:
+            print()
+            words,labels = words.to(device),labels.to(device)
 
-        #  forward pass
-        label_logits = model(words)
-        labels = labels.long()
-        label_preds = torch.softmax(label_logits,dim=1).argmax(dim=1)
-        loss = loss_fn(label_logits,labels)
-        test_loss +=loss
-        test_acc +=  accuracy_fn(y_true=labels, y_pred=label_preds)
+            #  forward pass
+            label_logits = model(words)
+            labels = labels.long()
+            label_preds = label_logits.argmax(dim=1)
+            test_loss += loss_fn(label_logits,labels)
+            test_acc +=  accuracy_fn(y_true=labels, y_pred=label_preds)
     
-    test_loss /= len(dataloader)
-    test_acc /= len(dataloader)
-    # print(f"Train loss:{test_loss:.5f} | Train acc:{test_acc:.2f}%")
+        test_loss /= len(dataloader)
+        test_acc /= len(dataloader)
+    # print(f"Test loss:{test_loss:.5f} | Test acc:{test_acc:.2f}%")
     return test_loss,test_acc
 

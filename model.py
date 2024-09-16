@@ -12,6 +12,9 @@ class NeuralNet(nn.Module):
                       out_features=hidden_units),
             nn.ReLU(),
             nn.Linear(in_features=hidden_units,
+                      out_features=hidden_units),
+            nn.ReLU(),
+            nn.Linear(in_features=hidden_units,
                       out_features=output_size),
             # nn.ReLU(),
         )

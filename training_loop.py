@@ -19,7 +19,7 @@ def train_step(model: torch.nn.Module,
         #  forward pass
         label_logits = model(words)
         labels = labels.long()
-        label_preds = torch.softmax(label_logits,dim=1).argmax(dim=1)
+        label_preds = label_logits.argmax(dim=1)
         loss = loss_fn(label_logits,labels)
         train_loss +=loss
         train_acc +=  accuracy_fn(y_true=labels, y_pred=label_preds)
