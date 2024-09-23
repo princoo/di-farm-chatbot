@@ -10,16 +10,19 @@ def train_step(model: torch.nn.Module,
                device: torch.device,
                ):
     
-    train_loss,train_acc = 0,0
     model.train()
+    train_loss,train_acc = 0,0
 
     for (words,labels) in dataloader:
         words,labels = words.to(device),labels.to(device)
+        print(f"word shape{words.shape} || labels shape: {labels.shape}")
 
         #  forward pass
         label_logits = model(words)
         labels = labels.long()
         label_preds = label_logits.argmax(dim=1)
+        print(f"pred_logits shape: {label_logits.shape}")
+
         loss = loss_fn(label_logits,labels)
         train_loss +=loss
         train_acc +=  accuracy_fn(y_true=labels, y_pred=label_preds)

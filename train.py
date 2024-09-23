@@ -4,11 +4,12 @@ import torch
 from torch import nn
 from tqdm import tqdm
 from torch.utils.data import Dataset,DataLoader
-from model import NeuralNet
+from datasets import load_dataset
+# from model import NeuralNet
+from model import Seq2Seq, EncoderLSTM, DecoderLSTM
 from spacy_utils import tokenize,lemmatize,bag_of_words
 from training_loop import train_step
 from save_model import save_model_version
-
 with open("intents.json","r") as f:
     intents = json.load(f)
 
@@ -41,20 +42,17 @@ for pattern_sentence,tag in xy:
 
 X_train = np.array(X_train)
 y_train = np.array(y_train)
+# X_train_tensor = torch.tensor(X_train, dtype=torch.float32)  # Convert X_train to tensor
+# y_train_tensor = torch.tensor(y_train, dtype=torch.long)     # Convert y_train to tensor
+# Define a function to pad sequences
+def pad_sequences(sequences, max_len):
+    padded_sequences = torch.zeros(len(sequences), max_len, dtype=torch.float32)
+    for i, seq in enumerate(sequences):
+        length = min(len(seq), max_len)
+        padded_sequences[i, :length] = torch.tensor(seq[:length])
+    return padded_sequences
 class ChatDataset(Dataset):
-    def __init__(self):
-        self.n_samples = len(X_train)
-        self.x_data= X_train
-        self.y_data = y_train
-    
-    def __getitem__(self, index):
-        return self.x_data[index],self.y_data[index]
-    
-    def __len__(self):
-        return self.n_samples
-class CustomDataset(Dataset):
-    def __init__(self, X_data, y_data):
-        self.n_samples = len(X_train)
+    def __init__(self,X_data,y_data):
         self.x_data= X_data
         self.y_data = y_data
     
@@ -62,35 +60,34 @@ class CustomDataset(Dataset):
         return self.x_data[index],self.y_data[index]
     
     def __len__(self):
-        return self.n_samples
+        return len(self.x_data)
 
 
 # Hyper parameter
 BATCH_SIZE = 8
-HIDDEN_UNITS = 10
+HIDDEN_UNITS = 128
 OUTPUT_SIZE = len(tags)
 INPUT_SIZE = len(all_words) # this would be the same also as the len of a single element of X_train
 LEARNING_RATE = 0.001
 MANUAL_SEED = 42
-EPOCHS = 200
+EPOCHS = 100
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-
-dataset = ChatDataset()
-
+dataset = ChatDataset(X_train, y_train)
 train_loader = DataLoader(dataset=dataset,
                           batch_size=BATCH_SIZE,
                           shuffle=True,
-                        #   num_workers=2
                           )
 
 torch.manual_seed(MANUAL_SEED)
-modelV1 = NeuralNet(input_size=INPUT_SIZE,
-                    hidden_units=HIDDEN_UNITS,
-                    output_size=OUTPUT_SIZE).to(device)
+embed_size = INPUT_SIZE
+hidden_size = 512
+modelV1 = Seq2Seq(encoder=EncoderLSTM(embed_size, hidden_size),
+                decoder=DecoderLSTM(hidden_size, OUTPUT_SIZE)).to(device)
 
 #  setting up loss function and optimizer
 loss_fn = nn.CrossEntropyLoss()
+# loss_fn = nn.NLLLoss()
 optimizer = torch.optim.Adam(modelV1.parameters(), lr=LEARNING_RATE)
 
 for epoch in tqdm(range(EPOCHS)):
@@ -105,9 +102,9 @@ for epoch in tqdm(range(EPOCHS)):
         print (f"\n Epoch:{epoch} -------- \n")
         print(f"Train loss:{train_loss:.5f} | Train acc:{train_acc:.2f}%")
 
-save_model_version(model=modelV1,
-                   input_size=INPUT_SIZE,
-                   hidden_units=HIDDEN_UNITS,
-                   output_size=OUTPUT_SIZE,
-                   all_words=all_words,
-                   tags=tags)
+# save_model_version(model=modelV1,
+#                    input_size=INPUT_SIZE,
+#                    hidden_units=HIDDEN_UNITS,
+#                    output_size=OUTPUT_SIZE,
+#                    all_words=all_words,
+#                    tags=tags)

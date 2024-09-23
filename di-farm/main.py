@@ -2,9 +2,14 @@ import json
 import typing
 import pandas as pd
 import nltk
+import torch
+from torch import nn
 from sklearn import model_selection, preprocessing
 from intent import IntentModel
 from tokenizer import Tokenizer
+from dataset import IntentDataset
+from model import RnnModelV1
+
 
 def load_intent_file():
     with open ("intents.json","r") as f:
@@ -53,9 +58,39 @@ def run():
             dfx.loc[test_indices,"fold"] = fold
     train_dfx, test_dfx = dfx.query("fold!=0").reset_index(drop=True), dfx.query("fold==0").reset_index(drop=True)
     print (dict(train=train_dfx.shape, test=test_dfx.shape))
-    tokenize = Tokenizer(texts=dfx["intents"].values,
+    tokenizer = Tokenizer(texts=dfx["intents"].values,
                          pad_length=18)
-    tokenize
+    # print(tokenizer.tokenize("What's your real name?"))
+    train_dataset = IntentDataset(
+        intents=train_dfx["intents"].values,
+        tags=train_dfx["encoded_tags"].values,
+        tokenizer=tokenizer
+    )
+    test_dataset = IntentDataset(
+        intents=test_dfx["intents"].values,
+        tags=test_dfx["encoded_tags"].values,
+        tokenizer=tokenizer
+    )
+    #  hyper parameters
+    N_EMBEDDING_DIM = 512
+    PADDING_IDX=123
+    N_HIDDEN_LAYER=3
+    N_HIDDEN_LAYER_NEURON = 512
+    EPOCHS = 10
+    LR = 3e-4
+
+    model: nn.Module = RnnModelV1(
+        n_embeddings=len(tokenizer.vocab_set) + 1,
+        n_embedding_dim = N_EMBEDDING_DIM,
+        padding_idx = PADDING_IDX,
+        n_hidden_layer = N_HIDDEN_LAYER,
+        n_hidden_layer_neurons = N_HIDDEN_LAYER_NEURON,
+        n_classes=dfx["encoded_tags"].nunique(),
+    )
+    optim = torch.optim.Adam(model.parameters(),
+                             lr=LR)
+    loss_fn = nn.CrossEntropyLoss()
+    
 
 
 
