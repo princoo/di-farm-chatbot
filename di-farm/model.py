@@ -20,7 +20,8 @@ class RnnModelV1(nn.Module):
             input_size=n_embedding_dim,
             hidden_size=n_hidden_layer_neurons,
             batch_first=True,
-            dropout=0.10
+            num_layers=2,
+            dropout=0.1
         )
         self.dence_layer = nn.Sequential(
             nn.Linear(in_features=9216, out_features=1024),

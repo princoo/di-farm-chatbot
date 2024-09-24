@@ -3,13 +3,14 @@ import typing
 import pandas as pd
 import nltk
 import torch
+import random
 from torch import nn
 from sklearn import model_selection, preprocessing
 from intent import IntentModel
 from tokenizer import Tokenizer
 from dataset import IntentDataset
 from model import RnnModelV1
-
+from engine import Engine
 
 def load_intent_file():
     with open ("intents.json","r") as f:
@@ -41,6 +42,39 @@ def create_dataset(intent_data:typing.List[IntentModel]) -> pd.DataFrame:
             .reset_index(drop=True)
         )
     return dfx
+
+def perform_prediction(
+    model: RnnModelV1,
+    tokenizer: Tokenizer,
+    sentence: str,
+    lbl_encoder: preprocessing.LabelEncoder,
+    intent_data: typing.List[IntentModel],
+):
+    tokenized_dict = tokenizer.tokenize(sentence)
+    token_type_ids = torch.tensor(
+        tokenized_dict["token_type_ids"], dtype=torch.long
+    ).unsqueeze(0)
+    model.eval()
+    with torch.no_grad():
+        output = model(token_type_ids)
+        output = torch.softmax(output, dim=1)
+        probs = output.max(dim=1)[0]
+        output = output.argmax(dim=1)
+        intent = lbl_encoder.inverse_transform(output.cpu().numpy())[0]
+        roboresponse = [
+            random.choice(intt.responses)
+            for intt in intent_data
+            if intt.intent == intent
+        ][0]
+        print(
+            "[BOT]:",
+            {
+                "sentence": sentence,
+                "predicted_intent": intent,
+                "probability": round(probs.item(), 3),
+                "bot_response": roboresponse,
+            },
+        )
 
 
 def run():
@@ -77,6 +111,7 @@ def run():
     N_HIDDEN_LAYER=3
     N_HIDDEN_LAYER_NEURON = 512
     EPOCHS = 10
+    BATCH_SIZE = 8
     LR = 3e-4
 
     model: nn.Module = RnnModelV1(
@@ -87,11 +122,37 @@ def run():
         n_hidden_layer_neurons = N_HIDDEN_LAYER_NEURON,
         n_classes=dfx["encoded_tags"].nunique(),
     )
-    optim = torch.optim.Adam(model.parameters(),
+    optimizer = torch.optim.Adam(model.parameters(),
                              lr=LR)
     loss_fn = nn.CrossEntropyLoss()
-    
 
+    for epoch in range(EPOCHS):
+        Engine.train(
+            model=model,
+            dataset=train_dataset,
+            loss_fn=loss_fn,
+            optimizer=optimizer,
+            train_batch_size=BATCH_SIZE,
+            epoch=epoch
+        )
+        Engine.test(
+            model=model,
+            dataset=train_dataset,
+            loss_fn=loss_fn,
+            train_batch_size=BATCH_SIZE,
+            epoch=epoch
+        )
+
+    inp = input("Enter your sentence: ")
+    while inp != "Q":
+        perform_prediction(
+            model=model,
+            tokenizer=tokenizer,
+            sentence=inp,
+            lbl_encoder=label_encoder,
+            intent_data=intent_class,
+        )
+        inp = input("[YOU]: ")
 
 
 
